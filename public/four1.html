@@ -1,0 +1,326 @@
+voici four1 ne perd rien ne brise rien donne moi le code complet <!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+
+<!-- =====================================================
+     <!-- === AJOUT PRIORITÉ (2026-02-10) === -->
+     VIEWPORT OBLIGATOIRE POUR MOBILE
+===================================================== -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- === FIN AJOUT PRIORITÉ === -->
+
+<title>Four #1</title>
+<link rel="stylesheet" href="style.css">
+
+<style>
+.cell.work { background:#ff6b6b !important; color:#000; font-weight:bold; }
+.cell.infiltre { outline:3px solid purple; }
+
+.uni-menu{
+  background:#fff;
+  border:1px solid #000;
+  padding:4px;
+  display:flex;
+  flex-direction:column;
+  min-width:160px;
+  z-index:10000;
+}
+.uni-menu button{
+  margin:2px 0;
+  cursor:pointer;
+  text-align:left;
+}
+
+/* === AJOUT PRIORITÉ (SURBRILLANCE ZONE ACTIVE) === */
+.chambre-zone-active{
+  outline:4px solid #00bcd4;
+  outline-offset:6px;
+}
+/* === FIN AJOUT PRIORITÉ === */
+
+/* === AJOUT PRIORITÉ (FLASH PROCHAINE ZONE) === */
+@keyframes flashZone{
+  0%   { outline-color:#ff0000; }
+  50%  { outline-color:transparent; }
+  100% { outline-color:#ff0000; }
+}
+.chambre-zone-next{
+  outline:4px solid red;
+  outline-offset:6px;
+  animation: flashZone 1s infinite;
+}
+/* === FIN AJOUT PRIORITÉ === */
+
+/* =====================================================
+   <!-- === AJOUT PRIORITÉ (2026-02-10) === -->
+   CORRECTIFS MOBILE — MENU & DÉBORDEMENT
+===================================================== */
+@media (max-width: 900px){
+  .uni-menu{
+    max-width:90vw;
+    left:5vw !important;
+    right:auto !important;
+  }
+}
+/* === FIN AJOUT PRIORITÉ === */
+</style>
+</head>
+
+<body>
+
+<h2>Four #1</h2>
+<a href="index.html">⬅ Retour tableau de bord</a>
+
+<!-- === AJOUT PRIORITÉ (2026-02-10) === -->
+<div class="plan-viewport">
+  <div class="plan" id="plan" data-plan="four1"></div>
+</div>
+<!-- === FIN AJOUT PRIORITÉ === -->
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/core/engine.js"></script>
+
+<script>
+const CURRENT_PLAN = "four1";
+const socket = io();
+
+let CLICK_TIMER = null;
+const CLICK_DELAY = 220;
+
+function closeAllMenus(){
+  document.querySelectorAll(".uni-menu").forEach(m => m.remove());
+}
+document.addEventListener("click", closeAllMenus);
+
+/* =====================================================
+   MENU — COMPLET ET GARANTI
+===================================================== */
+function openMenuFromEngine(cell){
+  if(!window.ENGINE || !ENGINE.getMenuDefinition) return;
+
+  const chambre = cell.dataset.chambre;
+  const zone = cell.dataset.zone;
+  const key = `${CURRENT_PLAN}/${chambre}/${zone}`;
+  const isMur = zone.startsWith("M");
+
+  let defs = [];
+
+  if(isMur){
+    const inf = ENGINE.getMenuDefinition({ key, intent:"INFILTRATION" }) || [];
+    const trav = ENGINE.getMenuDefinition({ key, intent:"TRAVAUX" }) || [];
+    defs = [...inf, ...trav];
+
+    const hasRemove = defs.some(d =>
+      d.action && d.action.selection === "remove_infiltre"
+    );
+    if(!hasRemove){
+      defs.unshift({
+        label: "🚫 Pas infiltré",
+        action: { selection: "remove_infiltre" }
+      });
+    }
+  } else {
+    defs = ENGINE.getMenuDefinition({ key, intent:"TRAVAUX" }) || [];
+  }
+
+  if(!defs.length) return;
+
+  closeAllMenus();
+
+  const menu = document.createElement("div");
+  menu.className = "uni-menu";
+  menu.style.position = "absolute";
+
+  const r = cell.getBoundingClientRect();
+
+  /* === AJOUT PRIORITÉ (ANTI SORTIE ÉCRAN MOBILE) === */
+  const maxLeft = window.innerWidth - 180;
+  const desiredLeft = r.right + 6 + window.scrollX;
+  menu.style.left = Math.min(desiredLeft, maxLeft) + "px";
+  /* === FIN AJOUT PRIORITÉ === */
+
+  menu.style.top  = (r.top + window.scrollY) + "px";
+
+  menu.addEventListener("click", e => e.stopPropagation());
+
+  defs.forEach(d=>{
+    const b = document.createElement("button");
+    b.textContent = d.label;
+
+    b.onclick = e=>{
+      e.stopPropagation();
+
+      let manual = d.action.manual || null;
+      if(d.action.prompt){
+        manual = prompt("Texte :");
+        if(!manual) return;
+      }
+
+      socket.emit("case:update",{
+        key,
+        selection:d.action.selection,
+        manual
+      });
+
+      menu.remove();
+    };
+
+    menu.appendChild(b);
+  });
+
+  document.body.appendChild(menu);
+}
+
+/* =====================================================
+   CELLULE
+===================================================== */
+function makeCell(ch,z,c){
+  const d = document.createElement("div");
+  d.className = "cell " + c;
+  d.dataset.plan = CURRENT_PLAN;
+  d.dataset.chambre = String(ch).padStart(2,"0");
+  d.dataset.zone = z;
+  d.textContent = z;
+
+  d.addEventListener("mousedown", e => e.stopPropagation());
+
+  d.onclick = ()=>{
+    if(CLICK_TIMER) return;
+    CLICK_TIMER = setTimeout(()=>{
+      CLICK_TIMER = null;
+      openMenuFromEngine(d);
+    }, CLICK_DELAY);
+  };
+
+  d.ondblclick = ()=>{
+    if(CLICK_TIMER){
+      clearTimeout(CLICK_TIMER);
+      CLICK_TIMER = null;
+    }
+    openMenuFromEngine(d);
+  };
+
+  return d;
+}
+
+/* =====================================================
+   CONSTRUCTION PLAN
+===================================================== */
+function chambreBloc(n,inv,side){
+  const w=document.createElement("div"); w.className="chambre-row";
+  const l=document.createElement("div"); l.className="chambre-num"; l.textContent=String(n).padStart(2,"0");
+  const ch=document.createElement("div"); ch.className="chambre";
+
+  const r1=document.createElement("div"); r1.className="row";
+  for(let i=1;i<=7;i++){
+    r1.appendChild(makeCell(n,"P"+i,"p short"));
+    if(i<7) r1.appendChild(makeCell(n,"T"+i,"t short"));
+  }
+
+  const r2=document.createElement("div"); r2.className="row";
+  const m=inv?[7,6,5,4,3,2,1]:[1,2,3,4,5,6,7];
+  const a=inv?[6,5,4,3,2,1]:[1,2,3,4,5,6];
+  for(let i=0;i<7;i++){
+    r2.appendChild(makeCell(n,"M"+m[i],"mur long"));
+    if(i<6) r2.appendChild(makeCell(n,"A"+a[i],"alveole long"));
+  }
+
+  ch.append(r1,r2);
+
+  if(n===38 || n===39){
+    const r3=document.createElement("div"); r3.className="row";
+    for(let i=1;i<=7;i++){
+      r3.appendChild(makeCell(n,"PB"+i,"p short"));
+      if(i<7) r3.appendChild(makeCell(n,"TB"+i,"t short"));
+    }
+    ch.appendChild(r3);
+  }
+
+  side==="left" ? w.append(l,ch) : w.append(ch,l);
+  return w;
+}
+
+/* =====================================================
+   INIT PLAN — ENGINE DÉCIDE
+===================================================== */
+(function waitForEngine(){
+  if (!window.ENGINE || !ENGINE.getPlanDefinition) {
+    return setTimeout(waitForEngine, 50);
+  }
+
+  const plan=document.getElementById("plan");
+  const def=ENGINE.getPlanDefinition("four1");
+  plan.innerHTML="";
+
+  def.sides.forEach(sideDef=>{
+    const col=document.createElement("div");
+    col.className="colonne";
+
+    const step = sideDef.from <= sideDef.to ? 1 : -1;
+    for(let n=sideDef.from; step>0?n<=sideDef.to:n>=sideDef.to; n+=step){
+      col.appendChild(chambreBloc(n, sideDef.invert, sideDef.side));
+    }
+    plan.appendChild(col);
+  });
+})();
+
+/* =====================================================
+   SYNC VISUEL — ENGINE DÉCIDE, UI AFFICHE
+===================================================== */
+socket.on("engine:viewState", state=>{
+  if(!state) return;
+
+  document.querySelectorAll(".chambre").forEach(ch=>{
+    ch.classList.remove("chambre-zone-active","chambre-zone-next");
+  });
+
+  if(state.chambresActives){
+    Object.keys(state.chambresActives).forEach(key=>{
+      const [four,ch] = key.split("/");
+      if(four!=="four1") return;
+
+      document.querySelectorAll(`.cell[data-chambre="${ch}"]`).forEach(cell=>{
+        const bloc = cell.closest(".chambre");
+        if(bloc) bloc.classList.add("chambre-zone-active");
+      });
+    });
+  }
+
+  if(state.chambresNext){
+    Object.keys(state.chambresNext).forEach(key=>{
+      const [four,ch] = key.split("/");
+      if(four!=="four1") return;
+
+      document.querySelectorAll(`.cell[data-chambre="${ch}"]`).forEach(cell=>{
+        const bloc = cell.closest(".chambre");
+        if(bloc) bloc.classList.add("chambre-zone-next");
+      });
+    });
+  }
+
+  document.querySelectorAll(".cell").forEach(c=>{
+    c.classList.remove("work","infiltre");
+  });
+
+  if(state.cases){
+    Object.entries(state.cases).forEach(([key,val])=>{
+      const [four,chRaw,zone]=key.split("/");
+      if(four!=="four1") return;
+
+      const ch = String(chRaw).padStart(2,"0");
+
+      const cell=document.querySelector(
+        `.cell[data-chambre="${ch}"][data-zone="${zone}"]`
+      );
+      if(!cell) return;
+
+      if(val.work) cell.classList.add("work");
+      if(val.infiltre) cell.classList.add("infiltre");
+    });
+  }
+});
+</script>
+
+</body>
+</html>

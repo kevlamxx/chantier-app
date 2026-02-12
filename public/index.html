@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Travaux à effectuer</title>
+<link rel="stylesheet" href="style.css">
+
+<style>
+.layout{
+  display:grid;
+  grid-template-columns: 0.85fr 1.5fr;
+  gap:32px;
+}
+
+table{ border-collapse:collapse; width:100%; }
+th,td{ border:1px solid #aaa; padding:6px; font-size:13px; }
+th{ background:#e6e6e6; }
+
+/* =====================================================
+   === PRIORITÉS — CSS INLINE (SOURCE VISUELLE)
+   ENGINE décide — INDEX affiche
+===================================================== */
+tr.prio-urgent{ background:#ffb3b3; }
+tr.prio-ultra{ background:#ffd6d6; }
+tr.prio-orange{ background:#ffe6c7; }
+tr.prio-yellow{ background:#fff3bf; }
+tr.prio-impossible{ background:#e0e0e0; }
+
+tr.work-done{
+  color:#2e7d32;
+  text-decoration:line-through;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Travaux à effectuer</h1>
+
+<div class="buttons">
+  <a href="four1.html" class="btn">Four #1</a>
+  <a href="four2.html" class="btn">Four #2</a>
+  <a href="infiltration.html" class="btn">Infiltration</a>
+  <a href="infiltration-history.html" class="btn">history</a>
+</div>
+
+<h2>Heure serveur</h2>
+<div id="clock" style="font-size:22px;font-weight:bold;">--:--:--</div>
+
+<div class="layout">
+
+<!-- ================= GAUCHE ================= -->
+<div>
+
+<h2>Cadence de production</h2>
+<table>
+<tr><th>Four</th><th>Cycle</th></tr>
+<tr>
+  <td>Four #1</td>
+  <td>
+    <select id="cycle_four1">
+      <option value="19">19 h</option>
+      <option value="24">24 h</option>
+    </select>
+  </td>
+</tr>
+<tr>
+  <td>Four #2</td>
+  <td>
+    <select id="cycle_four2">
+      <option value="19">19 h</option>
+      <option value="24">24 h</option>
+    </select>
+  </td>
+</tr>
+</table>
+
+<h2>Zones de production (manuel)</h2>
+<table>
+<thead>
+<tr>
+  <th>Zone</th>
+  <th>Four</th>
+  <th>Chambre</th>
+  <th>Heure transition</th>
+  <th>Compte à rebours</th>
+</tr>
+</thead>
+<tbody id="zones"></tbody>
+</table>
+
+</div>
+
+<!-- ================= DROITE ================= -->
+<div>
+
+<h2>Travaux actifs</h2>
+<table>
+<thead>
+<tr><th>Four</th><th>Chambre</th><th>Zone</th><th>Travail</th></tr>
+</thead>
+<tbody id="actifs"></tbody>
+</table>
+
+<h2>Travaux terminés (48h)</h2>
+<table>
+<thead>
+<tr><th>Four</th><th>Chambre</th><th>Zone</th><th>Travail</th><th>Date</th></tr>
+</thead>
+<tbody id="termines"></tbody>
+</table>
+
+</div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+let STATE = null;
+
+/* <!-- === AJOUT PRIORITÉ (LOCK ÉDITION ZONE) === --> */
+let EDITING_ZONE_ID = null;
+/* <!-- === FIN AJOUT PRIORITÉ === --> */
+
+/* =====================================================
+   SOCKET → ÉTAT GLOBAL (PASSIF)
+===================================================== */
+socket.on("engine:viewState", s=>{
+  STATE = s;
+
+  clock.textContent =
+    new Date(s.serverTime).toLocaleTimeString("fr-CA",{hour12:false});
+
+  cycle_four1.value = s.cycles.four1;
+  cycle_four2.value = s.cycles.four2;
+
+  renderZones();
+  renderActifs();
+  renderTermines();
+});
+
+/* =====================================================
+   CYCLES (EVENTS UNIQUEMENT)
+===================================================== */
+cycle_four1.onchange = () =>
+  socket.emit("cycle:update",{ four:"four1", hours:+cycle_four1.value });
+
+cycle_four2.onchange = () =>
+  socket.emit("cycle:update",{ four:"four2", hours:+cycle_four2.value });
+
+/* =====================================================
+   ZONES — UI PURE (ENGINE → UI)
+===================================================== */
+function renderZones(){
+  const tb = document.getElementById("zones");
+
+  /* <!-- === AJOUT PRIORITÉ (NE PAS RENDER SI ÉDITION) === --> */
+  if (EDITING_ZONE_ID !== null) return;
+  /* <!-- === FIN AJOUT PRIORITÉ === --> */
+
+  tb.innerHTML = "";
+
+  STATE.zonesUI.forEach(z=>{
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${z.id}</td>
+      <td>${z.four}</td>
+      <td><input type="number" min="1" value="${z.chambre}"></td>
+      <td><input type="time" value="${z.heureTransition}"></td>
+      <td>${z.compteRebours}</td>
+    `;
+
+    const inputs = tr.querySelectorAll("input");
+
+    /* <!-- === AJOUT PRIORITÉ (GESTION FOCUS ÉDITION) === --> */
+    inputs.forEach(inp=>{
+      inp.onfocus = () => EDITING_ZONE_ID = z.id;
+      inp.onblur  = () => EDITING_ZONE_ID = null;
+    });
+    /* <!-- === FIN AJOUT PRIORITÉ === --> */
+
+    inputs[0].onchange = ()=>socket.emit("zone:update",{
+      id: z.id,
+      chambre: Number(inputs[0].value)
+    });
+
+    inputs[1].onchange = ()=>socket.emit("zone:update",{
+      id: z.id,
+      heure: inputs[1].value
+    });
+
+    tb.appendChild(tr);
+  });
+}
+
+/* =====================================================
+   TRAVAUX ACTIFS — AFFICHAGE PUR
+===================================================== */
+function renderActifs(){
+  const tb=document.getElementById("actifs");
+  tb.innerHTML="";
+
+  STATE.travauxPriorises.forEach(t=>{
+    const [f,c,z]=t.key.split("/");
+    const tr=document.createElement("tr");
+
+    tr.className = t.priorityClass || "";
+
+    tr.innerHTML=`
+      <td>${f.toUpperCase()}</td>
+      <td>${c}</td>
+      <td>${z}</td>
+      <td>${t.label||"Travail"}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+
+/* =====================================================
+   TRAVAUX TERMINÉS (48h) — OBEISSANCE ENGINE
+===================================================== */
+function renderTermines(){
+  const tb=document.getElementById("termines");
+  tb.innerHTML="";
+
+  if (!Array.isArray(STATE.travauxTermines)) return;
+
+  STATE.travauxTermines.forEach(t=>{
+    const [f,c,z]=t.key.split("/");
+    const tr=document.createElement("tr");
+    tr.className="work-done";
+    tr.innerHTML=`
+      <td>${f.toUpperCase()}</td>
+      <td>${c}</td>
+      <td>${z}</td>
+      <td>${t.label||"Terminé"}</td>
+      <td>${new Date(t.doneTs).toLocaleString("fr-CA",{hour12:false})}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+</script>
+
+</body>
+</html>

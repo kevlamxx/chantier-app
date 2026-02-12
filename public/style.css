@@ -1,0 +1,334 @@
+   BASE GÉNÉRALE
+   (Aucune logique métier ici)
+===================================================== */
+body{
+  font-family: Calibri, Arial, sans-serif;
+  margin:30px;
+}
+
+/* =====================================================
+   NAVIGATION
+===================================================== */
+a, .btn{
+  display:inline-block;
+  margin-bottom:15px;
+  margin-right:10px;
+  padding:8px 14px;
+  background:#1F4E28;
+  color:white;
+  text-decoration:none;
+  font-weight:bold;
+  border-radius:4px;
+}
+
+a:hover, .btn:hover{
+  background:#2e6b3a;
+}
+
+/* =====================================================
+   TABLES GÉNÉRALES
+===================================================== */
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:20px;
+}
+
+th, td{
+  border:1px solid #aaa;
+  padding:6px;
+  font-size:13px;
+}
+
+th{
+  background:#ddd;
+}
+
+/* =====================================================
+   INPUTS / SELECTS
+===================================================== */
+select{
+  width:100%;
+  font-size:11px;
+}
+
+input[type="number"]{
+  width:70px;
+}
+
+input[type="time"]{
+  width:90px;
+}
+
+/* =====================================================
+   LAYOUT — PAGE INDEX
+===================================================== */
+.layout{
+  display:flex;
+  gap:16px;
+  align-items:flex-start;
+}
+
+.left-panel{
+  width:420px;
+  font-size:13px;
+}
+
+.right-panel{
+  flex:1;
+}
+
+/* =====================================================
+   ZONES DE PRODUCTION — INDEX
+===================================================== */
+.production-zones table{
+  font-size:13px;
+}
+
+.production-zones input{
+  width:70px;
+}
+
+/* =====================================================
+   CELLULES FOURS (four1 / four2)
+===================================================== */
+.cell{
+  border:1px solid #999;
+  font-size:11px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  cursor:pointer;
+  text-align:center;
+  user-select:none;
+  position:relative;
+}
+
+.long{ height:96px; }
+.short{ height:48px; }
+
+.mur{
+  width:56px;
+  background:#FFD966;
+}
+
+.alveole{
+  width:32px;
+  background:#FFFFFF;
+  writing-mode: vertical-rl;
+  font-weight:bold;
+}
+
+.p{
+  width:56px;
+  background:#1F4E28;
+  color:white;
+}
+
+.t{
+  width:32px;
+  background:#6AA84F;
+  color:white;
+}
+
+/* =====================================================
+   INFILTRATION — VISUEL UNIQUEMENT
+===================================================== */
+.cell.infiltre{
+  outline:4px solid #5b2d8b;
+  outline-offset:-4px;
+}
+
+/* =====================================================
+   🔥 PRIORITÉS — SOURCE UNIQUE : ENGINE
+   ⚠️ CSS NE CALCULE RIEN
+   ⚠️ CSS NE TRIE RIEN
+   ⚠️ CSS N’A PAS DE LOGIQUE
+===================================================== */
+
+/* === URGENT (1–3) === */
+tr.prio-urgent{
+  background:#ff3b3b !important;
+  color:#000 !important;
+  font-weight:bold;
+}
+
+/* === ULTRA (optionnel si ENGINE l’utilise) === */
+tr.prio-ultra{
+  background:#ff6b00 !important;
+  color:#000 !important;
+  font-weight:bold;
+}
+
+/* === ORANGE (4) === */
+tr.prio-orange{
+  background:#ffd000 !important;
+  color:#000 !important;
+  font-weight:bold;
+}
+
+/* === JAUNE (5+) === */
+tr.prio-yellow{
+  background:#fff3a0 !important;
+  color:#000 !important;
+}
+
+/* === IMPOSSIBLE / HORS ZONE === */
+tr.prio-impossible{
+  background:#d0d0d0 !important;
+  color:#333 !important;
+  font-style:italic;
+}
+
+/* =====================================================
+   TRAVAUX TERMINÉS (48h)
+   ENGINE marque — UI affiche
+===================================================== */
+tr.work-done{
+  background:#ccffcc !important;
+  color:#000 !important;
+  text-decoration:line-through;
+  font-weight:bold;
+}
+
+/* =====================================================
+   INFILTRATIONS — PAGE DÉDIÉE
+===================================================== */
+.infiltration-container{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:24px;
+  margin-top:20px;
+}
+
+.infiltration-col{
+  border:2px solid #333;
+  padding:16px;
+}
+
+.inf-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.inf-item{
+  border-left:6px solid #5b2d8b;
+  background:#f4f0fa;
+  padding:8px 12px;
+  font-weight:bold;
+}
+
+/* =====================================================
+   ZONES ACTIVES — INDICATION VISUELLE
+   (ENGINE décide QUELLE chambre)
+===================================================== */
+.chambre-zone-active{
+  outline:4px solid #00bcd4;
+  outline-offset:6px;
+}
+
+/* =====================================================
+   PROCHAINE ZONE — FLASH VISUEL
+===================================================== */
+@keyframes flashZone{
+  0%   { outline-color:#ff0000; }
+  50%  { outline-color:transparent; }
+  100% { outline-color:#ff0000; }
+}
+
+.chambre-zone-next{
+  outline:4px solid #ff0000;
+  outline-offset:6px;
+  animation: flashZone 1s infinite;
+}
+
+/* =====================================================
+   INDEX — CORRECTIFS VISUELS NAVIGATEUR
+   ⚠️ AUCUNE LOGIQUE
+   ⚠️ FORÇAGE COULEUR TABLE
+===================================================== */
+#actifs tr.prio-urgent td{
+  background:#ff3b3b !important;
+  color:#000 !important;
+  font-weight:bold;
+}
+
+#actifs tr.prio-ultra td{
+  background:#ff6b00 !important;
+  color:#000 !important;
+  font-weight:bold;
+}
+
+#actifs tr.prio-orange td{
+  background:#ffd000 !important;
+  color:#000 !important;
+  font-weight:bold;
+}
+
+#actifs tr.prio-yellow td{
+  background:#fff3a0 !important;
+  color:#000 !important;
+}
+
+#actifs tr.prio-impossible td{
+  background:#d0d0d0 !important;
+  color:#333 !important;
+  font-style:italic;
+}
+
+
+/* =====================================================
+   === AJOUT PRIORITÉ (2026-02-12) — CORRECTIF MOBILE FOUR1/FOUR2 ===
+   Aucun changement logique — uniquement visuel
+===================================================== */
+
+@media (max-width: 900px){
+
+  body{
+    margin:10px;
+  }
+
+}
+
+body{
+  overflow-x:hidden;
+}
+
+/* === FIN AJOUT PRIORITÉ === */
+/* =====================================================
+   === AJOUT PRIORITÉ (2026-02-12) ===
+   STRUCTURE PLAN FOUR1 / FOUR2
+   Aucun impact logique
+===================================================== */
+
+.plan{
+  display:flex;
+  gap:40px;
+  align-items:flex-start;
+}
+
+.colonne{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.chambre-row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.chambre{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.row{
+  display:flex;
+}
+
+/* === FIN AJOUT PRIORITÉ === */
