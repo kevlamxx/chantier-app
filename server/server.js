@@ -288,6 +288,20 @@ io.on("connection", socket => {
 });
 
 /* =====================================================
+   === AJOUT PRIORITÉ (SYNC HORLOGE TEMPS RÉEL STABLE) ===
+   Restaure le comportement qui fonctionnait avant.
+   N’affecte pas login, rôles, SQLite, Supabase, events.
+===================================================== */
+
+setInterval(() => {
+  try {
+    io.emit("engine:viewState", ENGINE.getState());
+  } catch (err) {
+    console.error("❌ Sync interval error:", err.message);
+  }
+}, 1000);
+
+/* =====================================================
    START SERVER
 ===================================================== */
 const PORT = process.env.PORT || 3000;
