@@ -2,7 +2,6 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Four #1</title>
@@ -68,7 +67,7 @@
 <script>
 
 /* =====================================================
-   AJOUT — IDENTIFICATION SIMPLE (UNE SEULE FOIS)
+   IDENTIFICATION SIMPLE (UNE SEULE FOIS)
 ===================================================== */
 
 let CURRENT_USER = localStorage.getItem("chantier_user");
@@ -159,7 +158,7 @@ function openMenuFromEngine(cell){
         key,
         selection:d.action.selection,
         manual,
-        user: CURRENT_USER   // ← AJOUT CRUCIAL
+        user: CURRENT_USER
       });
 
       menu.remove();
@@ -263,6 +262,62 @@ function chambreBloc(n,inv,side){
     plan.appendChild(col);
   });
 })();
+
+/* =====================================================
+   SYNC VISUEL COMPLET
+===================================================== */
+socket.on("engine:viewState", state=>{
+  if(!state) return;
+
+  document.querySelectorAll(".chambre").forEach(ch=>{
+    ch.classList.remove("chambre-zone-active","chambre-zone-next");
+  });
+
+  if(state.chambresActives){
+    Object.keys(state.chambresActives).forEach(key=>{
+      const [four,ch] = key.split("/");
+      if(four!=="four1") return;
+
+      document.querySelectorAll(`.cell[data-chambre="${ch}"]`).forEach(cell=>{
+        const bloc = cell.closest(".chambre");
+        if(bloc) bloc.classList.add("chambre-zone-active");
+      });
+    });
+  }
+
+  if(state.chambresNext){
+    Object.keys(state.chambresNext).forEach(key=>{
+      const [four,ch] = key.split("/");
+      if(four!=="four1") return;
+
+      document.querySelectorAll(`.cell[data-chambre="${ch}"]`).forEach(cell=>{
+        const bloc = cell.closest(".chambre");
+        if(bloc) bloc.classList.add("chambre-zone-next");
+      });
+    });
+  }
+
+  document.querySelectorAll(".cell").forEach(c=>{
+    c.classList.remove("work","infiltre");
+  });
+
+  if(state.cases){
+    Object.entries(state.cases).forEach(([key,val])=>{
+      const [four,chRaw,zone]=key.split("/");
+      if(four!=="four1") return;
+
+      const ch = String(chRaw).padStart(2,"0");
+
+      const cell=document.querySelector(
+        `.cell[data-chambre="${ch}"][data-zone="${zone}"]`
+      );
+      if(!cell) return;
+
+      if(val.work) cell.classList.add("work");
+      if(val.infiltre) cell.classList.add("infiltre");
+    });
+  }
+});
 </script>
 
 </body>
