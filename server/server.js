@@ -82,6 +82,15 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 }
 
 /* =====================================================
+   <!-- === AJOUT PRIORITÉ (ADMIN CONFIG) === -->
+===================================================== */
+
+const ADMIN_NAME = process.env.ADMIN_NAME || "kevin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234";
+
+/* === FIN AJOUT PRIORITÉ === */
+
+/* =====================================================
    LOAD STATE LOCAL
 ===================================================== */
 let row = await db.get(`SELECT json FROM engine_state WHERE id = 1`);
@@ -119,20 +128,16 @@ const ENGINE = globalThis.ENGINE;
 console.log("🧠 ENGINE chargé");
 
 /* =====================================================
-   AUTH SIMPLE
+   AUTH SIMPLE (ADMIN ONLY)
 ===================================================== */
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ ok:false });
+  if (username === ADMIN_NAME && password === ADMIN_PASSWORD) {
+    return res.json({ ok:true, role:"admin" });
   }
 
-  if (password !== process.env.INDEX_PASSWORD) {
-    return res.status(401).json({ ok:false });
-  }
-
-  res.json({ ok:true, username });
+  return res.status(401).json({ ok:false });
 });
 
 /* =====================================================
@@ -226,20 +231,20 @@ ENGINE.subscribe(async () => {
 });
 
 /* =====================================================
-   SOCKET.IO AVEC BLOQUAGE SI PAS USER
+   SOCKET.IO AVEC ROLE CHECK
 ===================================================== */
 io.on("connection", socket => {
 
   socket.emit("engine:viewState", ENGINE.getState());
 
   socket.on("zone:update", d => {
-    if (!d.user) return;
+    if (d.role !== "admin") return;
     blockSaveUntil = Date.now() + UI_GRACE_MS;
     ENGINE.updateZone(d);
   });
 
   socket.on("cycle:update", d => {
-    if (!d.user) return;
+    if (d.role !== "admin") return;
     ENGINE.updateCycle(d);
   });
 
@@ -261,43 +266,6 @@ io.on("connection", socket => {
 
     ENGINE.updateCase(d);
   });
-});
-
-/* =====================================================
-   API POWER APPS
-===================================================== */
-
-app.get("/api/state", (req, res) => {
-  res.json(ENGINE.getState());
-});
-
-app.post("/api/case", (req, res) => {
-  if (!req.body.user) return res.status(403).json({ ok:false });
-  ENGINE.updateCase(req.body);
-  res.json({ ok:true });
-});
-
-app.post("/api/zone", (req, res) => {
-  if (!req.body.user) return res.status(403).json({ ok:false });
-  ENGINE.updateZone(req.body);
-  res.json({ ok:true });
-});
-
-app.post("/api/cycle", (req, res) => {
-  if (!req.body.user) return res.status(403).json({ ok:false });
-  ENGINE.updateCycle(req.body);
-  res.json({ ok:true });
-});
-
-app.get("/api/events", async (req, res) => {
-  try {
-    const rows = await db.all(
-      `SELECT * FROM events_log ORDER BY ts DESC`
-    );
-    res.json({ ok:true, events: rows });
-  } catch (e) {
-    res.status(500).json({ ok:false, error:e.message });
-  }
 });
 
 /* =====================================================
