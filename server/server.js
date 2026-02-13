@@ -6,6 +6,10 @@ import { fileURLToPath } from "url";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 
+/* <!-- === AJOUT PRIORITÉ (SUPABASE CLOUD BACKUP) === --> */
+import { createClient } from "@supabase/supabase-js";
+/* <!-- === FIN AJOUT PRIORITÉ === --> */
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -48,7 +52,6 @@ CREATE TABLE IF NOT EXISTS engine_state (
 )
 `);
 
-/* <!-- === AJOUT PRIORITÉ (EVENTS HISTORIQUE) === --> */
 await db.exec(`
 CREATE TABLE IF NOT EXISTS events_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,9 +65,26 @@ CREATE TABLE IF NOT EXISTS events_log (
   source TEXT NOT NULL
 )
 `);
-/* <!-- === FIN AJOUT PRIORITÉ === --> */
 
 console.log("🗄️ SQLite prêt");
+
+/* =====================================================
+   <!-- === AJOUT PRIORITÉ (SUPABASE INIT) === -->
+===================================================== */
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+let supabase = null;
+
+if (SUPABASE_URL && SUPABASE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  console.log("☁️ Supabase connecté");
+} else {
+  console.log("⚠️ Supabase non configuré (env manquantes)");
+}
+
+/* === FIN AJOUT PRIORITÉ === */
 
 /* =====================================================
    LOAD STATE (RAW STATE UNIQUEMENT)
@@ -88,15 +108,16 @@ console.log("🧠 ENGINE chargé");
 ===================================================== */
 let saveInProgress = false;
 
-/* <!-- === AJOUT PRIORITÉ (ANTI-REENTRANCE UI) === --> */
 let blockSaveUntil = 0;
 const UI_GRACE_MS = 3000;
-/* <!-- === FIN AJOUT PRIORITÉ === --> */
 
-/* <!-- === AJOUT PRIORITÉ (LOGGER EVENT) === --> */
+/* =====================================================
+   LOGGER EVENT
+===================================================== */
 async function logEvent({ type, key, label }) {
   try {
     const [four, chambre, zone] = key.split("/");
+
     await db.run(
       `INSERT INTO events_log
        (type, key, four, chambre, zone, label, ts, source)
@@ -110,12 +131,30 @@ async function logEvent({ type, key, label }) {
       Date.now(),
       "engine"
     );
+
+    /* <!-- === AJOUT PRIORITÉ (SUPABASE LOG SYNC) === --> */
+    if (supabase) {
+      await supabase.from("events_log").insert([{
+        type,
+        key,
+        four,
+        chambre: Number(chambre),
+        zone,
+        label: label || null,
+        ts: Date.now(),
+        source: "engine"
+      }]);
+    }
+    /* === FIN AJOUT PRIORITÉ === */
+
   } catch (e) {
     console.error("❌ logEvent error:", e.message);
   }
 }
-/* <!-- === FIN AJOUT PRIORITÉ === --> */
 
+/* =====================================================
+   ENGINE SUBSCRIBE
+===================================================== */
 ENGINE.subscribe(async () => {
 
   if (Date.now() < blockSaveUntil) return;
@@ -140,6 +179,15 @@ ENGINE.subscribe(async () => {
       `INSERT OR REPLACE INTO engine_state (id, json) VALUES (1, ?)`,
       JSON.stringify(RAW_STATE)
     );
+
+    /* <!-- === AJOUT PRIORITÉ (SUPABASE STATE BACKUP) === --> */
+    if (supabase) {
+      await supabase.from("engine_state").upsert([{
+        id: 1,
+        json: RAW_STATE
+      }]);
+    }
+    /* === FIN AJOUT PRIORITÉ === */
 
   } catch (err) {
     console.error("❌ SQLite write error:", err.message);
@@ -181,7 +229,7 @@ io.on("connection", socket => {
 });
 
 /* =====================================================
-   API POWER APPS — PONT REST
+   API POWER APPS
 ===================================================== */
 
 app.get("/api/state", (req, res) => {
@@ -204,9 +252,6 @@ app.post("/api/cycle", (req, res) => {
   res.json({ ok: true });
 });
 
-/* =====================================================
-   API LECTURE HISTORIQUE
-===================================================== */
 app.get("/api/events", async (req, res) => {
   try {
     const rows = await db.all(
@@ -219,7 +264,7 @@ app.get("/api/events", async (req, res) => {
 });
 
 /* =====================================================
-   START SERVER (CLOUD READY)
+   START SERVER
 ===================================================== */
 
 const PORT = process.env.PORT || 3000;
