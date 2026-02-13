@@ -89,11 +89,37 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 /* =====================================================
    LOAD STATE (RAW STATE UNIQUEMENT)
 ===================================================== */
-const row = await db.get(`SELECT json FROM engine_state WHERE id = 1`);
+let row = await db.get(`SELECT json FROM engine_state WHERE id = 1`);
 if (row) {
   globalThis.INIT_STATE = JSON.parse(row.json);
   console.log("🧠 INIT_STATE injecté dans ENGINE");
 }
+
+/* <!-- === AJOUT PRIORITÉ (RELOAD SUPABASE BOOT) === --> */
+if (!row && supabase) {
+  try {
+    const { data, error } = await supabase
+      .from("engine_state")
+      .select("json")
+      .eq("id", 1)
+      .single();
+
+    if (error) {
+      console.error("❌ Supabase read error:", error.message);
+    }
+
+    if (data?.json) {
+      globalThis.INIT_STATE = data.json;
+      console.log("☁️ INIT_STATE chargé depuis Supabase");
+    } else {
+      console.log("ℹ️ Aucun état Supabase trouvé");
+    }
+
+  } catch (err) {
+    console.error("❌ Erreur chargement Supabase:", err.message);
+  }
+}
+/* === FIN AJOUT PRIORITÉ === */
 
 /* =====================================================
    LOAD ENGINE
