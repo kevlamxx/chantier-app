@@ -24,6 +24,11 @@ th{background:#EEE;}
       <th>Chambre</th>
       <th>Zone</th>
       <th>Label</th>
+
+      <!-- === AJOUT PRIORITÉ (UTILISATEUR) === -->
+      <th>Utilisateur</th>
+      <!-- === FIN AJOUT PRIORITÉ === -->
+
       <th>Date / Heure</th>
     </tr>
   </thead>
@@ -35,12 +40,15 @@ fetch("/api/events")
   .then(r=>r.json())
   .then(data=>{
     if(!data.ok) return;
+
     const tb = document.getElementById("log-body");
+    tb.innerHTML = "";
 
     data.events.forEach(ev => {
       const tr = document.createElement("tr");
 
-      const date = new Date(ev.ts).toLocaleString("fr-CA",{hour12:false});
+      const date = new Date(ev.ts)
+        .toLocaleString("fr-CA",{hour12:false});
 
       tr.innerHTML = `
         <td>${ev.type}</td>
@@ -48,11 +56,19 @@ fetch("/api/events")
         <td>${String(ev.chambre).padStart(2,"0")}</td>
         <td>${ev.zone}</td>
         <td>${ev.label || ""}</td>
+
+        <!-- === AJOUT PRIORITÉ (AFFICHE USER) === -->
+        <td><b>${ev.source || "?"}</b></td>
+        <!-- === FIN AJOUT PRIORITÉ === -->
+
         <td>${date}</td>
       `;
 
       tb.appendChild(tr);
     });
+  })
+  .catch(err=>{
+    console.error("Erreur chargement historique:", err);
   });
 </script>
 
