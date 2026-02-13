@@ -1,14 +1,9 @@
-voici four1 ne perd rien ne brise rien donne moi le code complet <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 
-<!-- =====================================================
-     <!-- === AJOUT PRIORITÉ (2026-02-10) === -->
-     VIEWPORT OBLIGATOIRE POUR MOBILE
-===================================================== -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- === FIN AJOUT PRIORITÉ === -->
 
 <title>Four #1</title>
 <link rel="stylesheet" href="style.css">
@@ -32,14 +27,11 @@ voici four1 ne perd rien ne brise rien donne moi le code complet <!DOCTYPE html>
   text-align:left;
 }
 
-/* === AJOUT PRIORITÉ (SURBRILLANCE ZONE ACTIVE) === */
 .chambre-zone-active{
   outline:4px solid #00bcd4;
   outline-offset:6px;
 }
-/* === FIN AJOUT PRIORITÉ === */
 
-/* === AJOUT PRIORITÉ (FLASH PROCHAINE ZONE) === */
 @keyframes flashZone{
   0%   { outline-color:#ff0000; }
   50%  { outline-color:transparent; }
@@ -50,12 +42,7 @@ voici four1 ne perd rien ne brise rien donne moi le code complet <!DOCTYPE html>
   outline-offset:6px;
   animation: flashZone 1s infinite;
 }
-/* === FIN AJOUT PRIORITÉ === */
 
-/* =====================================================
-   <!-- === AJOUT PRIORITÉ (2026-02-10) === -->
-   CORRECTIFS MOBILE — MENU & DÉBORDEMENT
-===================================================== */
 @media (max-width: 900px){
   .uni-menu{
     max-width:90vw;
@@ -63,7 +50,6 @@ voici four1 ne perd rien ne brise rien donne moi le code complet <!DOCTYPE html>
     right:auto !important;
   }
 }
-/* === FIN AJOUT PRIORITÉ === */
 </style>
 </head>
 
@@ -72,16 +58,32 @@ voici four1 ne perd rien ne brise rien donne moi le code complet <!DOCTYPE html>
 <h2>Four #1</h2>
 <a href="index.html">⬅ Retour tableau de bord</a>
 
-<!-- === AJOUT PRIORITÉ (2026-02-10) === -->
 <div class="plan-viewport">
   <div class="plan" id="plan" data-plan="four1"></div>
 </div>
-<!-- === FIN AJOUT PRIORITÉ === -->
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/core/engine.js"></script>
 
 <script>
+
+/* =====================================================
+   AJOUT — IDENTIFICATION SIMPLE (UNE SEULE FOIS)
+===================================================== */
+
+let CURRENT_USER = localStorage.getItem("chantier_user");
+
+if(!CURRENT_USER){
+  CURRENT_USER = prompt("Entre ton nom :");
+  if(CURRENT_USER){
+    localStorage.setItem("chantier_user", CURRENT_USER);
+  } else {
+    alert("Nom requis pour ajouter des travaux.");
+  }
+}
+
+/* ===================================================== */
+
 const CURRENT_PLAN = "four1";
 const socket = io();
 
@@ -94,7 +96,7 @@ function closeAllMenus(){
 document.addEventListener("click", closeAllMenus);
 
 /* =====================================================
-   MENU — COMPLET ET GARANTI
+   MENU
 ===================================================== */
 function openMenuFromEngine(cell){
   if(!window.ENGINE || !ENGINE.getMenuDefinition) return;
@@ -133,13 +135,9 @@ function openMenuFromEngine(cell){
   menu.style.position = "absolute";
 
   const r = cell.getBoundingClientRect();
-
-  /* === AJOUT PRIORITÉ (ANTI SORTIE ÉCRAN MOBILE) === */
   const maxLeft = window.innerWidth - 180;
   const desiredLeft = r.right + 6 + window.scrollX;
   menu.style.left = Math.min(desiredLeft, maxLeft) + "px";
-  /* === FIN AJOUT PRIORITÉ === */
-
   menu.style.top  = (r.top + window.scrollY) + "px";
 
   menu.addEventListener("click", e => e.stopPropagation());
@@ -160,7 +158,8 @@ function openMenuFromEngine(cell){
       socket.emit("case:update",{
         key,
         selection:d.action.selection,
-        manual
+        manual,
+        user: CURRENT_USER   // ← AJOUT CRUCIAL
       });
 
       menu.remove();
@@ -242,7 +241,7 @@ function chambreBloc(n,inv,side){
 }
 
 /* =====================================================
-   INIT PLAN — ENGINE DÉCIDE
+   INIT PLAN
 ===================================================== */
 (function waitForEngine(){
   if (!window.ENGINE || !ENGINE.getPlanDefinition) {
@@ -264,62 +263,6 @@ function chambreBloc(n,inv,side){
     plan.appendChild(col);
   });
 })();
-
-/* =====================================================
-   SYNC VISUEL — ENGINE DÉCIDE, UI AFFICHE
-===================================================== */
-socket.on("engine:viewState", state=>{
-  if(!state) return;
-
-  document.querySelectorAll(".chambre").forEach(ch=>{
-    ch.classList.remove("chambre-zone-active","chambre-zone-next");
-  });
-
-  if(state.chambresActives){
-    Object.keys(state.chambresActives).forEach(key=>{
-      const [four,ch] = key.split("/");
-      if(four!=="four1") return;
-
-      document.querySelectorAll(`.cell[data-chambre="${ch}"]`).forEach(cell=>{
-        const bloc = cell.closest(".chambre");
-        if(bloc) bloc.classList.add("chambre-zone-active");
-      });
-    });
-  }
-
-  if(state.chambresNext){
-    Object.keys(state.chambresNext).forEach(key=>{
-      const [four,ch] = key.split("/");
-      if(four!=="four1") return;
-
-      document.querySelectorAll(`.cell[data-chambre="${ch}"]`).forEach(cell=>{
-        const bloc = cell.closest(".chambre");
-        if(bloc) bloc.classList.add("chambre-zone-next");
-      });
-    });
-  }
-
-  document.querySelectorAll(".cell").forEach(c=>{
-    c.classList.remove("work","infiltre");
-  });
-
-  if(state.cases){
-    Object.entries(state.cases).forEach(([key,val])=>{
-      const [four,chRaw,zone]=key.split("/");
-      if(four!=="four1") return;
-
-      const ch = String(chRaw).padStart(2,"0");
-
-      const cell=document.querySelector(
-        `.cell[data-chambre="${ch}"][data-zone="${zone}"]`
-      );
-      if(!cell) return;
-
-      if(val.work) cell.classList.add("work");
-      if(val.infiltre) cell.classList.add("infiltre");
-    });
-  }
-});
 </script>
 
 </body>
