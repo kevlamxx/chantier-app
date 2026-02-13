@@ -48,6 +48,11 @@ tr.work-done{
   <a href="infiltration-history.html" class="btn">history</a>
 </div>
 
+<!-- === AJOUT PRIORITÉ (AFFICHAGE UTILISATEUR) === -->
+<div id="user_info" style="margin-bottom:10px;font-weight:bold;"></div>
+<button id="admin_btn" style="margin-bottom:15px;">Activer mode admin</button>
+<!-- === FIN AJOUT PRIORITÉ === -->
+
 <h2>Heure serveur</h2>
 <div id="clock" style="font-size:22px;font-weight:bold;">--:--:--</div>
 
@@ -122,63 +127,78 @@ tr.work-done{
 const socket = io();
 let STATE = null;
 
-/* <!-- === AJOUT PRIORITÉ (ROLE SYSTEM) === --> */
+/* <!-- === AJOUT PRIORITÉ (ROLE SYSTEM V2) === --> */
+
 let CURRENT_USER = localStorage.getItem("chantier_user") || null;
 let CURRENT_ROLE = localStorage.getItem("chantier_role") || "user";
 
-async function loginIfNeeded(){
+function initUser(){
 
-  if (CURRENT_USER) return;
-
-  const username = prompt("Ton nom :");
-  if (!username){
-    alert("Nom requis");
-    return;
-  }
-
-  let role = "user";
-
-  if (username.toLowerCase() === "kevin"){  // <-- ton nom admin
-    const password = prompt("Mot de passe admin :");
-
-    const res = await fetch("/api/login",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ username, password })
-    });
-
-    const data = await res.json();
-
-    if (!data.ok){
-      alert("Mot de passe invalide");
+  if (!CURRENT_USER){
+    const username = prompt("Ton nom :");
+    if (!username){
+      alert("Nom requis");
       return;
     }
-
-    role = "admin";
+    CURRENT_USER = username;
+    CURRENT_ROLE = "user";
+    localStorage.setItem("chantier_user", username);
+    localStorage.setItem("chantier_role", "user");
   }
 
-  CURRENT_USER = username;
-  CURRENT_ROLE = role;
-
-  localStorage.setItem("chantier_user", username);
-  localStorage.setItem("chantier_role", role);
+  document.getElementById("user_info").textContent =
+    "Connecté : " + CURRENT_USER + " (" + CURRENT_ROLE + ")";
 
   applyRoleUI();
 }
 
+async function activateAdmin(){
+
+  const password = prompt("Mot de passe admin :");
+  if (!password) return;
+
+  const res = await fetch("/api/login-admin",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ 
+      username: CURRENT_USER,
+      password 
+    })
+  });
+
+  const data = await res.json();
+
+  if (!data.ok){
+    alert("Mot de passe invalide");
+    return;
+  }
+
+  CURRENT_ROLE = "admin";
+  localStorage.setItem("chantier_role", "admin");
+  initUser();
+}
+
 function applyRoleUI(){
   if (CURRENT_ROLE !== "admin"){
-    document.getElementById("admin_section").classList.add("admin-locked");
+    document.getElementById("admin_section")
+      .classList.add("admin-locked");
+  } else {
+    document.getElementById("admin_section")
+      .classList.remove("admin-locked");
   }
 }
 
-loginIfNeeded();
-/* <!-- === FIN AJOUT PRIORITÉ === --> */
+document.getElementById("admin_btn")
+  .addEventListener("click", activateAdmin);
+
+initUser();
+
+/* <!-- === FIN AJOUT PRIORITÉ === */
 
 
 /* <!-- === AJOUT PRIORITÉ (LOCK ÉDITION ZONE) === --> */
 let EDITING_ZONE_ID = null;
-/* <!-- === FIN AJOUT PRIORITÉ === --> */
+/* <!-- === FIN AJOUT PRIORITÉ === */
 
 
 /* =====================================================
@@ -200,7 +220,7 @@ socket.on("engine:viewState", s=>{
 
 
 /* =====================================================
-   CYCLES (ADMIN ONLY)
+   CYCLES
 ===================================================== */
 cycle_four1.onchange = () =>
   socket.emit("cycle:update",{ 
@@ -220,7 +240,7 @@ cycle_four2.onchange = () =>
 
 
 /* =====================================================
-   ZONES (ADMIN ONLY)
+   ZONES
 ===================================================== */
 function renderZones(){
   const tb = document.getElementById("zones");
