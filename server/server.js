@@ -85,7 +85,7 @@ if (SUPABASE_URL && SUPABASE_KEY) {
    ADMIN CONFIG
 ===================================================== */
 
-const ADMIN_NAME = process.env.ADMIN_NAME || "kevin";
+const ADMIN_NAME = process.env.ADMIN_NAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234";
 
 /* =====================================================
@@ -124,6 +124,16 @@ await import(new URL("../public/core/engine.js", import.meta.url).href);
 const ENGINE = globalThis.ENGINE;
 
 console.log("🧠 ENGINE chargé");
+
+/* =====================================================
+   <!-- === AJOUT PRIORITÉ (SYNC TEMPS RÉEL COMPTE À REBOURS) === -->
+===================================================== */
+
+setInterval(() => {
+  io.emit("engine:viewState", ENGINE.getState());
+}, 1000);
+
+/* === FIN AJOUT PRIORITÉ === */
 
 /* =====================================================
    LOGIN ADMIN
