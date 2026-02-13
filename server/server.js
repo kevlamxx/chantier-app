@@ -82,13 +82,11 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 }
 
 /* =====================================================
-   <!-- === AJOUT PRIORITÉ (ADMIN CONFIG) === -->
+   ADMIN CONFIG
 ===================================================== */
 
 const ADMIN_NAME = process.env.ADMIN_NAME || "kevin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234";
-
-/* === FIN AJOUT PRIORITÉ === */
 
 /* =====================================================
    LOAD STATE LOCAL
@@ -128,7 +126,7 @@ const ENGINE = globalThis.ENGINE;
 console.log("🧠 ENGINE chargé");
 
 /* =====================================================
-   <!-- === AJOUT PRIORITÉ (LOGIN ADMIN SÉPARÉ) === -->
+   LOGIN ADMIN
 ===================================================== */
 
 app.post("/api/login-admin", (req, res) => {
@@ -139,6 +137,29 @@ app.post("/api/login-admin", (req, res) => {
   }
 
   return res.status(401).json({ ok:false });
+});
+
+/* =====================================================
+   === AJOUT PRIORITÉ (API EVENTS RESTORE) ===
+===================================================== */
+
+app.get("/api/events", async (req, res) => {
+  try {
+    const rows = await db.all(
+      `SELECT * FROM events_log ORDER BY ts DESC`
+    );
+
+    res.json({
+      ok: true,
+      events: rows
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message
+    });
+  }
 });
 
 /* === FIN AJOUT PRIORITÉ === */
@@ -234,7 +255,7 @@ ENGINE.subscribe(async () => {
 });
 
 /* =====================================================
-   SOCKET.IO AVEC ADMIN UNIQUEMENT POUR ZONE/CYCLE
+   SOCKET.IO
 ===================================================== */
 io.on("connection", socket => {
 
