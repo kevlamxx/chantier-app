@@ -27,33 +27,23 @@ tr.work-done{
   text-decoration:line-through;
 }
 
-/* <!-- === AJOUT PRIORITÉ (ADMIN VISUEL) === --> */
 .admin-locked{
   opacity:0.5;
   pointer-events:none;
 }
-/* <!-- === FIN AJOUT PRIORITÉ === --> */
 
-
-/* =====================================================
-   <!-- === AJOUT PRIORITÉ (IMPRESSION COULEURS) === -->
-===================================================== */
+/* ================= IMPRESSION ================= */
 @media print {
-
-  body * {
-    visibility: hidden;
-  }
+  body * { visibility: hidden; }
 
   #actifs, #actifs *,
   #termines, #termines *,
-  h2 {
-    visibility: visible;
-  }
+  h2 { visibility: visible; }
 
   #actifs, #termines {
-    position: absolute;
-    left: 0;
-    width: 100%;
+    position:absolute;
+    left:0;
+    width:100%;
   }
 
   tr.prio-urgent{ background:#ffb3b3 !important; }
@@ -61,13 +51,7 @@ tr.work-done{
   tr.prio-orange{ background:#ffe6c7 !important; }
   tr.prio-yellow{ background:#fff3bf !important; }
   tr.prio-impossible{ background:#e0e0e0 !important; }
-
-  tr.work-done{
-    color:#2e7d32 !important;
-  }
 }
-/* === FIN AJOUT PRIORITÉ === */
-
 </style>
 </head>
 
@@ -82,47 +66,41 @@ tr.work-done{
   <a href="infiltration-history.html" class="btn">history</a>
 </div>
 
-<!-- === AJOUT PRIORITÉ (BOUTONS EXPORT & PRINT) === -->
 <div style="margin:10px 0;">
   <button onclick="printTravaux()">🖨 Imprimer travaux</button>
   <button onclick="exportHistorique()">📄 Export historique CSV</button>
 </div>
-<!-- === FIN AJOUT PRIORITÉ === -->
 
-
-<!-- === AJOUT PRIORITÉ (AFFICHAGE UTILISATEUR) === -->
 <div id="user_info" style="margin-bottom:10px;font-weight:bold;"></div>
 <button id="admin_btn" style="margin-bottom:15px;">Activer mode admin</button>
-<!-- === FIN AJOUT PRIORITÉ === -->
 
 <h2>Heure serveur</h2>
 <div id="clock" style="font-size:22px;font-weight:bold;">--:--:--</div>
 
 <div class="layout">
 
-<!-- ================= GAUCHE ================= -->
 <div id="admin_section">
 
 <h2>Cadence de production</h2>
 <table>
 <tr><th>Four</th><th>Cycle</th></tr>
 <tr>
-  <td>Four #1</td>
-  <td>
-    <select id="cycle_four1">
-      <option value="19">19 h</option>
-      <option value="24">24 h</option>
-    </select>
-  </td>
+<td>Four #1</td>
+<td>
+<select id="cycle_four1">
+<option value="19">19 h</option>
+<option value="24">24 h</option>
+</select>
+</td>
 </tr>
 <tr>
-  <td>Four #2</td>
-  <td>
-    <select id="cycle_four2">
-      <option value="19">19 h</option>
-      <option value="24">24 h</option>
-    </select>
-  </td>
+<td>Four #2</td>
+<td>
+<select id="cycle_four2">
+<option value="19">19 h</option>
+<option value="24">24 h</option>
+</select>
+</td>
 </tr>
 </table>
 
@@ -130,11 +108,11 @@ tr.work-done{
 <table>
 <thead>
 <tr>
-  <th>Zone</th>
-  <th>Four</th>
-  <th>Chambre</th>
-  <th>Heure transition</th>
-  <th>Compte à rebours</th>
+<th>Zone</th>
+<th>Four</th>
+<th>Chambre</th>
+<th>Heure transition</th>
+<th>Compte à rebours</th>
 </tr>
 </thead>
 <tbody id="zones"></tbody>
@@ -142,7 +120,6 @@ tr.work-done{
 
 </div>
 
-<!-- ================= DROITE ================= -->
 <div>
 
 <h2>Travaux actifs</h2>
@@ -166,54 +143,181 @@ tr.work-done{
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+
 const socket = io();
 let STATE = null;
 
-/* === TON CODE ORIGINAL RESTE IDENTIQUE ICI === */
-/* (je ne le modifie pas, je le laisse tel quel) */
+let CURRENT_USER = localStorage.getItem("chantier_user") || null;
+let CURRENT_ROLE = localStorage.getItem("chantier_role") || "user";
 
-/* =====================================================
-   <!-- === AJOUT PRIORITÉ (PRINT FUNCTION) === -->
-===================================================== */
+function initUser(){
+  if(!CURRENT_USER){
+    const username = prompt("Ton nom :");
+    if(!username){ alert("Nom requis"); return; }
+    CURRENT_USER = username;
+    CURRENT_ROLE = "user";
+    localStorage.setItem("chantier_user", username);
+    localStorage.setItem("chantier_role", "user");
+  }
+
+  user_info.textContent =
+    "Connecté : " + CURRENT_USER + " (" + CURRENT_ROLE + ")";
+
+  applyRoleUI();
+}
+
+async function activateAdmin(){
+  const password = prompt("Mot de passe admin :");
+  if(!password) return;
+
+  const res = await fetch("/api/login-admin",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      username: CURRENT_USER,
+      password
+    })
+  });
+
+  const data = await res.json();
+
+  if(!data.ok){ alert("Mot de passe invalide"); return; }
+
+  CURRENT_ROLE = "admin";
+  localStorage.setItem("chantier_role","admin");
+  initUser();
+}
+
+function applyRoleUI(){
+  if(CURRENT_ROLE !== "admin"){
+    admin_section.classList.add("admin-locked");
+  } else {
+    admin_section.classList.remove("admin-locked");
+  }
+}
+
+admin_btn.addEventListener("click", activateAdmin);
+initUser();
+
+/* ================= SOCKET ================= */
+
+socket.on("engine:viewState", s=>{
+  STATE = s;
+
+  if(!s) return;
+
+  if(s.serverTime){
+    clock.textContent =
+      new Date(s.serverTime)
+      .toLocaleTimeString("fr-CA",{hour12:false});
+  }
+
+  cycle_four1.value = s.cycles.four1;
+  cycle_four2.value = s.cycles.four2;
+
+  renderZones();
+  renderActifs();
+  renderTermines();
+});
+
+/* ================= RENDERS ================= */
+
+function renderZones(){
+  const tb = zones;
+  tb.innerHTML = "";
+
+  if(!STATE || !STATE.zonesUI) return;
+
+  STATE.zonesUI.forEach(z=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${z.id}</td>
+      <td>${z.four}</td>
+      <td>${z.chambre}</td>
+      <td>${z.heureTransition}</td>
+      <td>${z.compteRebours}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+
+function renderActifs(){
+  const tb = actifs;
+  tb.innerHTML = "";
+
+  if(!STATE || !STATE.travauxPriorises) return;
+
+  STATE.travauxPriorises.forEach(t=>{
+    const [f,c,z]=t.key.split("/");
+    const tr=document.createElement("tr");
+    tr.className = t.priorityClass || "";
+    tr.innerHTML=`
+      <td>${f.toUpperCase()}</td>
+      <td>${c}</td>
+      <td>${z}</td>
+      <td>${t.label||"Travail"}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+
+function renderTermines(){
+  const tb = termines;
+  tb.innerHTML = "";
+
+  if(!STATE || !STATE.travauxTermines) return;
+
+  STATE.travauxTermines.forEach(t=>{
+    const [f,c,z]=t.key.split("/");
+    const tr=document.createElement("tr");
+    tr.className="work-done";
+    tr.innerHTML=`
+      <td>${f.toUpperCase()}</td>
+      <td>${c}</td>
+      <td>${z}</td>
+      <td>${t.label||"Terminé"}</td>
+      <td>${new Date(t.doneTs)
+        .toLocaleString("fr-CA",{hour12:false})}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+
+/* ================= PRINT ================= */
+
 function printTravaux(){
   window.print();
 }
-/* === FIN AJOUT PRIORITÉ === */
 
+/* ================= EXPORT CSV ================= */
 
-/* =====================================================
-   <!-- === AJOUT PRIORITÉ (EXPORT HISTORIQUE CSV) === -->
-===================================================== */
 function exportHistorique(){
-
   fetch("/api/events")
-    .then(r=>r.json())
-    .then(data=>{
-      if(!data.ok) return;
+  .then(r=>r.json())
+  .then(data=>{
+    if(!data.ok) return;
 
-      let csv = "Type;Four;Chambre;Zone;Label;Utilisateur;Date\n";
+    let csv="Type;Four;Chambre;Zone;Label;Utilisateur;Date\n";
 
-      data.events.forEach(ev=>{
-        const date = new Date(ev.ts)
-          .toLocaleString("fr-CA",{hour12:false});
+    data.events.forEach(ev=>{
+      const date=new Date(ev.ts)
+        .toLocaleString("fr-CA",{hour12:false});
 
-        csv += `${ev.type};${ev.four};${String(ev.chambre).padStart(2,"0")};${ev.zone};${ev.label||""};${ev.source||""};${date}\n`;
-      });
-
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "historique_evenements.csv";
-      a.click();
-
-      URL.revokeObjectURL(url);
+      csv+=`${ev.type};${ev.four};${String(ev.chambre).padStart(2,"0")};${ev.zone};${ev.label||""};${ev.source||""};${date}\n`;
     });
+
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="historique_evenements.csv";
+    a.click();
+
+    URL.revokeObjectURL(url);
+  });
 }
-/* === FIN AJOUT PRIORITÉ === */
 
 </script>
-
 </body>
 </html>
