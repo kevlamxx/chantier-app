@@ -5,10 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-
-/* <!-- === AJOUT PRIORITÉ (SUPABASE CLOUD BACKUP) === --> */
 import { createClient } from "@supabase/supabase-js";
-/* <!-- === FIN AJOUT PRIORITÉ === --> */
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -126,16 +123,6 @@ const ENGINE = globalThis.ENGINE;
 console.log("🧠 ENGINE chargé");
 
 /* =====================================================
-   <!-- === AJOUT PRIORITÉ (SYNC TEMPS RÉEL COMPTE À REBOURS) === -->
-===================================================== */
-
-setInterval(() => {
-  io.emit("engine:viewState", ENGINE.getState());
-}, 1000);
-
-/* === FIN AJOUT PRIORITÉ === */
-
-/* =====================================================
    LOGIN ADMIN
 ===================================================== */
 
@@ -150,7 +137,7 @@ app.post("/api/login-admin", (req, res) => {
 });
 
 /* =====================================================
-   === AJOUT PRIORITÉ (API EVENTS RESTORE) ===
+   API EVENTS
 ===================================================== */
 
 app.get("/api/events", async (req, res) => {
@@ -171,8 +158,6 @@ app.get("/api/events", async (req, res) => {
     });
   }
 });
-
-/* === FIN AJOUT PRIORITÉ === */
 
 /* =====================================================
    PERSISTENCE SAFE
