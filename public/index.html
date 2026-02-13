@@ -144,6 +144,10 @@ let STATE = null;
 let CURRENT_USER = localStorage.getItem("chantier_user") || null;
 let CURRENT_ROLE = localStorage.getItem("chantier_role") || "user";
 
+/* ================= 🔒 AJOUT CRITIQUE (ANTI RE-RENDER) ================= */
+let EDITING_ZONE_ID = null;
+/* ===================================================== */
+
 /* ================= USER ================= */
 
 function initUser(){
@@ -240,6 +244,10 @@ cycle_four2.onchange = () =>
 
 function renderZones(){
   const tb = document.getElementById("zones");
+
+  /* 🔒 NE PAS RENDER SI ÉDITION ACTIVE */
+  if (EDITING_ZONE_ID !== null) return;
+
   tb.innerHTML = "";
 
   if(!STATE || !STATE.zonesUI) return;
@@ -260,6 +268,12 @@ function renderZones(){
     `;
 
     const inputs = tr.querySelectorAll("input");
+
+    /* 🔒 PROTECTION FOCUS / BLUR */
+    inputs.forEach(inp=>{
+      inp.onfocus = () => EDITING_ZONE_ID = z.id;
+      inp.onblur  = () => EDITING_ZONE_ID = null;
+    });
 
     inputs[0].onchange = ()=>socket.emit("zone:update",{
       id: z.id,
