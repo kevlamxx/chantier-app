@@ -7,9 +7,10 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
     "express": "^4.22.1",
     "socket.io": "^4.7.2",
-    "sqlite3": "^5.1.6",
-    "sqlite": "^4.2.1"
+    "sqlite": "^4.2.1",
+    "sqlite3": "^5.1.6"
   }
 }
