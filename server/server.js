@@ -20,7 +20,6 @@ const app = express();
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 /* =====================================================
-   <!-- === AJOUT PRIORITÉ (2026-02-10) === -->
    POWER APPS — JSON + CORS
 ===================================================== */
 app.use(express.json());
@@ -31,7 +30,6 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return res.sendStatus(200);
   next();
 });
-/* === FIN AJOUT PRIORITÉ === */
 
 const server = http.createServer(app);
 const io = new Server(server);
@@ -44,7 +42,6 @@ const db = await open({
   driver: sqlite3.Database
 });
 
-/* ================= EXISTANT ================= */
 await db.exec(`
 CREATE TABLE IF NOT EXISTS engine_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -69,7 +66,7 @@ CREATE TABLE IF NOT EXISTS events_log (
 console.log("🗄️ SQLite prêt");
 
 /* =====================================================
-   <!-- === AJOUT PRIORITÉ (SUPABASE INIT) === -->
+   SUPABASE INIT
 ===================================================== */
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -84,10 +81,8 @@ if (SUPABASE_URL && SUPABASE_KEY) {
   console.log("⚠️ Supabase non configuré (env manquantes)");
 }
 
-/* === FIN AJOUT PRIORITÉ === */
-
 /* =====================================================
-   LOAD STATE (RAW STATE UNIQUEMENT)
+   LOAD STATE LOCAL
 ===================================================== */
 let row = await db.get(`SELECT json FROM engine_state WHERE id = 1`);
 if (row) {
@@ -95,31 +90,25 @@ if (row) {
   console.log("🧠 INIT_STATE injecté dans ENGINE");
 }
 
-/* <!-- === AJOUT PRIORITÉ (RELOAD SUPABASE BOOT) === --> */
+/* =====================================================
+   LOAD STATE SUPABASE SI LOCAL VIDE
+===================================================== */
 if (!row && supabase) {
   try {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("engine_state")
       .select("json")
       .eq("id", 1)
       .single();
 
-    if (error) {
-      console.error("❌ Supabase read error:", error.message);
-    }
-
     if (data?.json) {
       globalThis.INIT_STATE = data.json;
       console.log("☁️ INIT_STATE chargé depuis Supabase");
-    } else {
-      console.log("ℹ️ Aucun état Supabase trouvé");
     }
-
   } catch (err) {
-    console.error("❌ Erreur chargement Supabase:", err.message);
+    console.error("❌ Supabase boot error:", err.message);
   }
 }
-/* === FIN AJOUT PRIORITÉ === */
 
 /* =====================================================
    LOAD ENGINE
@@ -130,17 +119,33 @@ const ENGINE = globalThis.ENGINE;
 console.log("🧠 ENGINE chargé");
 
 /* =====================================================
-   PERSISTENCE SAFE (STATE INTERNE SEULEMENT)
+   AUTH SIMPLE
+===================================================== */
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ ok:false });
+  }
+
+  if (password !== process.env.INDEX_PASSWORD) {
+    return res.status(401).json({ ok:false });
+  }
+
+  res.json({ ok:true, username });
+});
+
+/* =====================================================
+   PERSISTENCE SAFE
 ===================================================== */
 let saveInProgress = false;
-
 let blockSaveUntil = 0;
 const UI_GRACE_MS = 3000;
 
 /* =====================================================
-   LOGGER EVENT
+   LOGGER EVENT AVEC USER
 ===================================================== */
-async function logEvent({ type, key, label }) {
+async function logEvent({ type, key, label, user }) {
   try {
     const [four, chambre, zone] = key.split("/");
 
@@ -155,10 +160,9 @@ async function logEvent({ type, key, label }) {
       zone,
       label || null,
       Date.now(),
-      "engine"
+      user || "unknown"
     );
 
-    /* <!-- === AJOUT PRIORITÉ (SUPABASE LOG SYNC) === --> */
     if (supabase) {
       await supabase.from("events_log").insert([{
         type,
@@ -168,10 +172,9 @@ async function logEvent({ type, key, label }) {
         zone,
         label: label || null,
         ts: Date.now(),
-        source: "engine"
+        source: user || "unknown"
       }]);
     }
-    /* === FIN AJOUT PRIORITÉ === */
 
   } catch (e) {
     console.error("❌ logEvent error:", e.message);
@@ -206,14 +209,12 @@ ENGINE.subscribe(async () => {
       JSON.stringify(RAW_STATE)
     );
 
-    /* <!-- === AJOUT PRIORITÉ (SUPABASE STATE BACKUP) === --> */
     if (supabase) {
       await supabase.from("engine_state").upsert([{
         id: 1,
         json: RAW_STATE
       }]);
     }
-    /* === FIN AJOUT PRIORITÉ === */
 
   } catch (err) {
     console.error("❌ SQLite write error:", err.message);
@@ -225,29 +226,37 @@ ENGINE.subscribe(async () => {
 });
 
 /* =====================================================
-   SOCKET.IO
+   SOCKET.IO AVEC BLOQUAGE SI PAS USER
 ===================================================== */
 io.on("connection", socket => {
 
   socket.emit("engine:viewState", ENGINE.getState());
 
   socket.on("zone:update", d => {
+    if (!d.user) return;
     blockSaveUntil = Date.now() + UI_GRACE_MS;
     ENGINE.updateZone(d);
   });
 
-  socket.on("cycle:update", d => ENGINE.updateCycle(d));
+  socket.on("cycle:update", d => {
+    if (!d.user) return;
+    ENGINE.updateCycle(d);
+  });
 
   socket.on("case:update", d => {
 
+    if (!d.user) return;
+
+    const user = d.user;
+
     if (d.selection === "infiltre") {
-      logEvent({ type:"infiltration", key:d.key, label:d.manual });
+      logEvent({ type:"infiltration", key:d.key, label:d.manual, user });
     }
     else if (d.selection === "termine") {
-      logEvent({ type:"termine", key:d.key, label:d.manual });
+      logEvent({ type:"termine", key:d.key, label:d.manual, user });
     }
     else {
-      logEvent({ type:"work", key:d.key, label:d.manual });
+      logEvent({ type:"work", key:d.key, label:d.manual, user });
     }
 
     ENGINE.updateCase(d);
@@ -263,19 +272,21 @@ app.get("/api/state", (req, res) => {
 });
 
 app.post("/api/case", (req, res) => {
-  const { key, selection, manual } = req.body;
-  ENGINE.updateCase({ key, selection, manual });
-  res.json({ ok: true });
+  if (!req.body.user) return res.status(403).json({ ok:false });
+  ENGINE.updateCase(req.body);
+  res.json({ ok:true });
 });
 
 app.post("/api/zone", (req, res) => {
+  if (!req.body.user) return res.status(403).json({ ok:false });
   ENGINE.updateZone(req.body);
-  res.json({ ok: true });
+  res.json({ ok:true });
 });
 
 app.post("/api/cycle", (req, res) => {
+  if (!req.body.user) return res.status(403).json({ ok:false });
   ENGINE.updateCycle(req.body);
-  res.json({ ok: true });
+  res.json({ ok:true });
 });
 
 app.get("/api/events", async (req, res) => {
@@ -292,7 +303,6 @@ app.get("/api/events", async (req, res) => {
 /* =====================================================
    START SERVER
 ===================================================== */
-
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
