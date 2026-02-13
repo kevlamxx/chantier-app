@@ -16,10 +16,6 @@ table{ border-collapse:collapse; width:100%; }
 th,td{ border:1px solid #aaa; padding:6px; font-size:13px; }
 th{ background:#e6e6e6; }
 
-/* =====================================================
-   === PRIORITÉS — CSS INLINE (SOURCE VISUELLE)
-   ENGINE décide — INDEX affiche
-===================================================== */
 tr.prio-urgent{ background:#ffb3b3; }
 tr.prio-ultra{ background:#ffd6d6; }
 tr.prio-orange{ background:#ffe6c7; }
@@ -30,6 +26,14 @@ tr.work-done{
   color:#2e7d32;
   text-decoration:line-through;
 }
+
+/* <!-- === AJOUT PRIORITÉ (ADMIN VISUEL) === --> */
+.admin-locked{
+  opacity:0.5;
+  pointer-events:none;
+}
+/* <!-- === FIN AJOUT PRIORITÉ === --> */
+
 </style>
 </head>
 
@@ -50,7 +54,7 @@ tr.work-done{
 <div class="layout">
 
 <!-- ================= GAUCHE ================= -->
-<div>
+<div id="admin_section">
 
 <h2>Cadence de production</h2>
 <table>
@@ -118,12 +122,67 @@ tr.work-done{
 const socket = io();
 let STATE = null;
 
+/* <!-- === AJOUT PRIORITÉ (ROLE SYSTEM) === --> */
+let CURRENT_USER = localStorage.getItem("chantier_user") || null;
+let CURRENT_ROLE = localStorage.getItem("chantier_role") || "user";
+
+async function loginIfNeeded(){
+
+  if (CURRENT_USER) return;
+
+  const username = prompt("Ton nom :");
+  if (!username){
+    alert("Nom requis");
+    return;
+  }
+
+  let role = "user";
+
+  if (username.toLowerCase() === "kevin"){  // <-- ton nom admin
+    const password = prompt("Mot de passe admin :");
+
+    const res = await fetch("/api/login",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await res.json();
+
+    if (!data.ok){
+      alert("Mot de passe invalide");
+      return;
+    }
+
+    role = "admin";
+  }
+
+  CURRENT_USER = username;
+  CURRENT_ROLE = role;
+
+  localStorage.setItem("chantier_user", username);
+  localStorage.setItem("chantier_role", role);
+
+  applyRoleUI();
+}
+
+function applyRoleUI(){
+  if (CURRENT_ROLE !== "admin"){
+    document.getElementById("admin_section").classList.add("admin-locked");
+  }
+}
+
+loginIfNeeded();
+/* <!-- === FIN AJOUT PRIORITÉ === --> */
+
+
 /* <!-- === AJOUT PRIORITÉ (LOCK ÉDITION ZONE) === --> */
 let EDITING_ZONE_ID = null;
 /* <!-- === FIN AJOUT PRIORITÉ === --> */
 
+
 /* =====================================================
-   SOCKET → ÉTAT GLOBAL (PASSIF)
+   SOCKET → ÉTAT GLOBAL
 ===================================================== */
 socket.on("engine:viewState", s=>{
   STATE = s;
@@ -139,24 +198,34 @@ socket.on("engine:viewState", s=>{
   renderTermines();
 });
 
+
 /* =====================================================
-   CYCLES (EVENTS UNIQUEMENT)
+   CYCLES (ADMIN ONLY)
 ===================================================== */
 cycle_four1.onchange = () =>
-  socket.emit("cycle:update",{ four:"four1", hours:+cycle_four1.value });
+  socket.emit("cycle:update",{ 
+    four:"four1", 
+    hours:+cycle_four1.value,
+    user: CURRENT_USER,
+    role: CURRENT_ROLE
+  });
 
 cycle_four2.onchange = () =>
-  socket.emit("cycle:update",{ four:"four2", hours:+cycle_four2.value });
+  socket.emit("cycle:update",{ 
+    four:"four2", 
+    hours:+cycle_four2.value,
+    user: CURRENT_USER,
+    role: CURRENT_ROLE
+  });
+
 
 /* =====================================================
-   ZONES — UI PURE (ENGINE → UI)
+   ZONES (ADMIN ONLY)
 ===================================================== */
 function renderZones(){
   const tb = document.getElementById("zones");
 
-  /* <!-- === AJOUT PRIORITÉ (NE PAS RENDER SI ÉDITION) === --> */
   if (EDITING_ZONE_ID !== null) return;
-  /* <!-- === FIN AJOUT PRIORITÉ === --> */
 
   tb.innerHTML = "";
 
@@ -173,29 +242,32 @@ function renderZones(){
 
     const inputs = tr.querySelectorAll("input");
 
-    /* <!-- === AJOUT PRIORITÉ (GESTION FOCUS ÉDITION) === --> */
     inputs.forEach(inp=>{
       inp.onfocus = () => EDITING_ZONE_ID = z.id;
       inp.onblur  = () => EDITING_ZONE_ID = null;
     });
-    /* <!-- === FIN AJOUT PRIORITÉ === --> */
 
     inputs[0].onchange = ()=>socket.emit("zone:update",{
       id: z.id,
-      chambre: Number(inputs[0].value)
+      chambre: Number(inputs[0].value),
+      user: CURRENT_USER,
+      role: CURRENT_ROLE
     });
 
     inputs[1].onchange = ()=>socket.emit("zone:update",{
       id: z.id,
-      heure: inputs[1].value
+      heure: inputs[1].value,
+      user: CURRENT_USER,
+      role: CURRENT_ROLE
     });
 
     tb.appendChild(tr);
   });
 }
 
+
 /* =====================================================
-   TRAVAUX ACTIFS — AFFICHAGE PUR
+   TRAVAUX ACTIFS
 ===================================================== */
 function renderActifs(){
   const tb=document.getElementById("actifs");
@@ -217,8 +289,9 @@ function renderActifs(){
   });
 }
 
+
 /* =====================================================
-   TRAVAUX TERMINÉS (48h) — OBEISSANCE ENGINE
+   TRAVAUX TERMINÉS
 ===================================================== */
 function renderTermines(){
   const tb=document.getElementById("termines");
