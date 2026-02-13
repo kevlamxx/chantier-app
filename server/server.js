@@ -128,9 +128,10 @@ const ENGINE = globalThis.ENGINE;
 console.log("🧠 ENGINE chargé");
 
 /* =====================================================
-   AUTH SIMPLE (ADMIN ONLY)
+   <!-- === AJOUT PRIORITÉ (LOGIN ADMIN SÉPARÉ) === -->
 ===================================================== */
-app.post("/api/login", (req, res) => {
+
+app.post("/api/login-admin", (req, res) => {
   const { username, password } = req.body;
 
   if (username === ADMIN_NAME && password === ADMIN_PASSWORD) {
@@ -139,6 +140,8 @@ app.post("/api/login", (req, res) => {
 
   return res.status(401).json({ ok:false });
 });
+
+/* === FIN AJOUT PRIORITÉ === */
 
 /* =====================================================
    PERSISTENCE SAFE
@@ -231,7 +234,7 @@ ENGINE.subscribe(async () => {
 });
 
 /* =====================================================
-   SOCKET.IO AVEC ROLE CHECK
+   SOCKET.IO AVEC ADMIN UNIQUEMENT POUR ZONE/CYCLE
 ===================================================== */
 io.on("connection", socket => {
 
