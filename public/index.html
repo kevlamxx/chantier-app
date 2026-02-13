@@ -45,12 +45,6 @@ tr.work-done{
     left:0;
     width:100%;
   }
-
-  tr.prio-urgent{ background:#ffb3b3 !important; }
-  tr.prio-ultra{ background:#ffd6d6 !important; }
-  tr.prio-orange{ background:#ffe6c7 !important; }
-  tr.prio-yellow{ background:#fff3bf !important; }
-  tr.prio-impossible{ background:#e0e0e0 !important; }
 }
 </style>
 </head>
@@ -150,6 +144,8 @@ let STATE = null;
 let CURRENT_USER = localStorage.getItem("chantier_user") || null;
 let CURRENT_ROLE = localStorage.getItem("chantier_role") || "user";
 
+/* ================= USER ================= */
+
 function initUser(){
   if(!CURRENT_USER){
     const username = prompt("Ton nom :");
@@ -160,7 +156,7 @@ function initUser(){
     localStorage.setItem("chantier_role", "user");
   }
 
-  user_info.textContent =
+  document.getElementById("user_info").textContent =
     "Connecté : " + CURRENT_USER + " (" + CURRENT_ROLE + ")";
 
   applyRoleUI();
@@ -189,60 +185,104 @@ async function activateAdmin(){
 }
 
 function applyRoleUI(){
+  const section = document.getElementById("admin_section");
   if(CURRENT_ROLE !== "admin"){
-    admin_section.classList.add("admin-locked");
+    section.classList.add("admin-locked");
   } else {
-    admin_section.classList.remove("admin-locked");
+    section.classList.remove("admin-locked");
   }
 }
 
-admin_btn.addEventListener("click", activateAdmin);
+document.getElementById("admin_btn")
+  .addEventListener("click", activateAdmin);
+
 initUser();
 
 /* ================= SOCKET ================= */
 
 socket.on("engine:viewState", s=>{
   STATE = s;
-
   if(!s) return;
 
   if(s.serverTime){
-    clock.textContent =
+    document.getElementById("clock").textContent =
       new Date(s.serverTime)
       .toLocaleTimeString("fr-CA",{hour12:false});
   }
 
-  cycle_four1.value = s.cycles.four1;
-  cycle_four2.value = s.cycles.four2;
+  document.getElementById("cycle_four1").value = s.cycles.four1;
+  document.getElementById("cycle_four2").value = s.cycles.four2;
 
   renderZones();
   renderActifs();
   renderTermines();
 });
 
-/* ================= RENDERS ================= */
+/* ================= CYCLES ================= */
+
+cycle_four1.onchange = () =>
+  socket.emit("cycle:update",{ 
+    four:"four1", 
+    hours:+cycle_four1.value,
+    user: CURRENT_USER,
+    role: CURRENT_ROLE
+  });
+
+cycle_four2.onchange = () =>
+  socket.emit("cycle:update",{ 
+    four:"four2", 
+    hours:+cycle_four2.value,
+    user: CURRENT_USER,
+    role: CURRENT_ROLE
+  });
+
+/* ================= ZONES ================= */
 
 function renderZones(){
-  const tb = zones;
+  const tb = document.getElementById("zones");
   tb.innerHTML = "";
 
   if(!STATE || !STATE.zonesUI) return;
 
   STATE.zonesUI.forEach(z=>{
     const tr = document.createElement("tr");
+
     tr.innerHTML = `
       <td>${z.id}</td>
       <td>${z.four}</td>
-      <td>${z.chambre}</td>
-      <td>${z.heureTransition}</td>
+      <td>
+        <input type="number" min="1" value="${z.chambre}">
+      </td>
+      <td>
+        <input type="time" value="${z.heureTransition}">
+      </td>
       <td>${z.compteRebours}</td>
     `;
+
+    const inputs = tr.querySelectorAll("input");
+
+    inputs[0].onchange = ()=>socket.emit("zone:update",{
+      id: z.id,
+      chambre: Number(inputs[0].value),
+      user: CURRENT_USER,
+      role: CURRENT_ROLE
+    });
+
+    inputs[1].onchange = ()=>socket.emit("zone:update",{
+      id: z.id,
+      heure: inputs[1].value,
+      user: CURRENT_USER,
+      role: CURRENT_ROLE
+    });
+
     tb.appendChild(tr);
   });
 }
 
+/* ================= TRAVAUX ================= */
+
 function renderActifs(){
-  const tb = actifs;
+  const tb = document.getElementById("actifs");
   tb.innerHTML = "";
 
   if(!STATE || !STATE.travauxPriorises) return;
@@ -262,7 +302,7 @@ function renderActifs(){
 }
 
 function renderTermines(){
-  const tb = termines;
+  const tb = document.getElementById("termines");
   tb.innerHTML = "";
 
   if(!STATE || !STATE.travauxTermines) return;
