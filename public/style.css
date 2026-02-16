@@ -332,3 +332,25 @@ body{
 }
 
 /* === FIN AJOUT PRIORITÉ === */
+/* =====================================================
+   ZONE ACTIVE — VERSION FORTE
+===================================================== */
+
+.chambre-zone-active{
+  position: relative;
+  background: linear-gradient(180deg,#008cff,#003f99);
+  border:4px solid #001a40;
+  box-shadow:0 0 40px rgba(0,120,255,1);
+  transform:scale(1.03);
+  transition: all 0.2s ease;
+}
+
+/* halo interne lumineux */
+.chambre-zone-active::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  box-shadow: inset 0 0 25px rgba(0,140,255,0.6);
+  pointer-events:none;
+}
+
