@@ -26,26 +26,11 @@
   text-align:left;
 }
 
-/* =====================================================
-   ZONE ACTIVE — VERSION ULTRA VISIBLE (AJUSTÉ)
-   Aucun impact moteur
-===================================================== */
+/* ZONE ACTIVE RENFORCÉE — SANS TOUCHER AU LAYOUT */
 .chambre-zone-active{
-  position: relative;
-  background: linear-gradient(180deg,#008cff,#003f99);
-  border:4px solid #001a40;
-  box-shadow:0 0 40px rgba(0,120,255,1);
-  transform:scale(1.03);
-  z-index:20;
-}
-
-/* effet halo interne supplémentaire */
-.chambre-zone-active::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  box-shadow: inset 0 0 25px rgba(0,140,255,0.6);
-  pointer-events:none;
+  outline:4px solid #00bcd4;
+  outline-offset:6px;
+  box-shadow:0 0 30px rgba(0,188,212,0.9);
 }
 
 @keyframes flashZone{
@@ -84,10 +69,7 @@
 
 <script>
 
-/* =====================================================
-   IDENTIFICATION SIMPLE (UNE SEULE FOIS)
-===================================================== */
-
+/* IDENTIFICATION */
 let CURRENT_USER = localStorage.getItem("chantier_user");
 
 if(!CURRENT_USER){
@@ -98,8 +80,6 @@ if(!CURRENT_USER){
     alert("Nom requis pour ajouter des travaux.");
   }
 }
-
-/* ===================================================== */
 
 const CURRENT_PLAN = "four1";
 const socket = io();
@@ -112,9 +92,7 @@ function closeAllMenus(){
 }
 document.addEventListener("click", closeAllMenus);
 
-/* =====================================================
-   MENU
-===================================================== */
+/* MENU */
 function openMenuFromEngine(cell){
   if(!window.ENGINE || !ENGINE.getMenuDefinition) return;
 
@@ -188,9 +166,146 @@ function openMenuFromEngine(cell){
   document.body.appendChild(menu);
 }
 
-/* === TOUT LE RESTE DE TON SCRIPT EST STRICTEMENT IDENTIQUE === */
-/* Je ne l’ai pas modifié pour ne rien casser */
+/* CELLULE */
+function makeCell(ch,z,c){
+  const d = document.createElement("div");
+  d.className = "cell " + c;
+  d.dataset.plan = CURRENT_PLAN;
+  d.dataset.chambre = String(ch).padStart(2,"0");
+  d.dataset.zone = z;
+  d.textContent = z;
 
+  d.addEventListener("mousedown", e => e.stopPropagation());
+
+  d.onclick = ()=>{
+    if(CLICK_TIMER) return;
+    CLICK_TIMER = setTimeout(()=>{
+      CLICK_TIMER = null;
+      openMenuFromEngine(d);
+    }, CLICK_DELAY);
+  };
+
+  d.ondblclick = ()=>{
+    if(CLICK_TIMER){
+      clearTimeout(CLICK_TIMER);
+      CLICK_TIMER = null;
+    }
+    openMenuFromEngine(d);
+  };
+
+  return d;
+}
+
+/* CONSTRUCTION PLAN */
+function chambreBloc(n,inv,side){
+  const w=document.createElement("div"); w.className="chambre-row";
+  const l=document.createElement("div"); l.className="chambre-num"; l.textContent=String(n).padStart(2,"0");
+  const ch=document.createElement("div"); ch.className="chambre";
+
+  const r1=document.createElement("div"); r1.className="row";
+  for(let i=1;i<=7;i++){
+    r1.appendChild(makeCell(n,"P"+i,"p short"));
+    if(i<7) r1.appendChild(makeCell(n,"T"+i,"t short"));
+  }
+
+  const r2=document.createElement("div"); r2.className="row";
+  const m=inv?[7,6,5,4,3,2,1]:[1,2,3,4,5,6,7];
+  const a=inv?[6,5,4,3,2,1]:[1,2,3,4,5,6];
+  for(let i=0;i<7;i++){
+    r2.appendChild(makeCell(n,"M"+m[i],"mur long"));
+    if(i<6) r2.appendChild(makeCell(n,"A"+a[i],"alveole long"));
+  }
+
+  ch.append(r1,r2);
+
+  if(n===38 || n===39){
+    const r3=document.createElement("div"); r3.className="row";
+    for(let i=1;i<=7;i++){
+      r3.appendChild(makeCell(n,"PB"+i,"p short"));
+      if(i<7) r3.appendChild(makeCell(n,"TB"+i,"t short"));
+    }
+    ch.appendChild(r3);
+  }
+
+  side==="left" ? w.append(l,ch) : w.append(ch,l);
+  return w;
+}
+
+/* INIT PLAN */
+(function waitForEngine(){
+  if (!window.ENGINE || !ENGINE.getPlanDefinition) {
+    return setTimeout(waitForEngine, 50);
+  }
+
+  const plan=document.getElementById("plan");
+  const def=ENGINE.getPlanDefinition("four1");
+  plan.innerHTML="";
+
+  def.sides.forEach(sideDef=>{
+    const col=document.createElement("div");
+    col.className="colonne";
+
+    const step = sideDef.from <= sideDef.to ? 1 : -1;
+    for(let n=sideDef.from; step>0?n<=sideDef.to:n>=sideDef.to; n+=step){
+      col.appendChild(chambreBloc(n, sideDef.invert, sideDef.side));
+    }
+    plan.appendChild(col);
+  });
+})();
+
+/* SYNC VISUEL */
+socket.on("engine:viewState", state=>{
+  if(!state) return;
+
+  document.querySelectorAll(".chambre").forEach(ch=>{
+    ch.classList.remove("chambre-zone-active","chambre-zone-next");
+  });
+
+  if(state.chambresActives){
+    Object.keys(state.chambresActives).forEach(key=>{
+      const [four,ch] = key.split("/");
+      if(four!=="four1") return;
+
+      document.querySelectorAll(`.cell[data-chambre="${ch}"]`).forEach(cell=>{
+        const bloc = cell.closest(".chambre");
+        if(bloc) bloc.classList.add("chambre-zone-active");
+      });
+    });
+  }
+
+  if(state.chambresNext){
+    Object.keys(state.chambresNext).forEach(key=>{
+      const [four,ch] = key.split("/");
+      if(four!=="four1") return;
+
+      document.querySelectorAll(`.cell[data-chambre="${ch}"]`).forEach(cell=>{
+        const bloc = cell.closest(".chambre");
+        if(bloc) bloc.classList.add("chambre-zone-next");
+      });
+    });
+  }
+
+  document.querySelectorAll(".cell").forEach(c=>{
+    c.classList.remove("work","infiltre");
+  });
+
+  if(state.cases){
+    Object.entries(state.cases).forEach(([key,val])=>{
+      const [four,chRaw,zone]=key.split("/");
+      if(four!=="four1") return;
+
+      const ch = String(chRaw).padStart(2,"0");
+
+      const cell=document.querySelector(
+        `.cell[data-chambre="${ch}"][data-zone="${zone}"]`
+      );
+      if(!cell) return;
+
+      if(val.work) cell.classList.add("work");
+      if(val.infiltre) cell.classList.add("infiltre");
+    });
+  }
+});
 </script>
 
 </body>
